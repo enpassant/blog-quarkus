@@ -1,0 +1,34 @@
+# Use together with infra-dc.yml, with the same Compose project name.
+x-podman:
+  in_pod: false
+
+services:
+  app:
+    image: localhost/blog-quarkus:1.0.0-SNAPSHOT
+    build:
+      context: .
+      dockerfile: Containerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT:-8090}:8080"
+    environment:
+      QUARKUS_HTTP_HOST: 0.0.0.0
+      QUARKUS_HTTP_PORT: "8080"
+      BLOG_TITLE: "${BLOG_TITLE:-Rapids Blog}"
+      BLOG_STORE: mongo
+      BLOG_MONGO_URI: mongodb://mongodb:27017
+      BLOG_MONGO_DATABASE: "${BLOG_MONGO_DATABASE:-blog}"
+      BLOG_MONGO_COMMAND_DATABASE: "${BLOG_MONGO_COMMAND_DATABASE:-store}"
+      BLOG_PEKKO_SNAPSHOTS_ENABLED: "${BLOG_PEKKO_SNAPSHOTS_ENABLED:-false}"
+      BLOG_KAFKA_ENABLED: "true"
+      BLOG_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      BLOG_REGISTRATION_BASE_URL: http://app:8080
+      BLOG_AUTH_SECRET: "${BLOG_AUTH_SECRET:?Set BLOG_AUTH_SECRET in .env (at least 32 characters)}"
+      # Local demo login: username and password must match. See README.
+      BLOG_AUTH_DEV_LOGIN: "${BLOG_AUTH_DEV_LOGIN:-true}"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    stop_grace_period: 20s

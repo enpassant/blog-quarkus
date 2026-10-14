@@ -1,0 +1,12 @@
+**
+!modules/
+!modules/app/
+!modules/app/target/
+!modules/app/target/quarkus-app/
+!modules/app/target/quarkus-app/**
+!apps/
+!apps/*/
+!apps/*/target/
+!apps/*/target/quarkus-app/
+!apps/*/target/quarkus-app/**
+!Containerfile

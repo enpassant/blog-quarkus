@@ -1,0 +1,20 @@
+# MongoDB-only development. Uses the same host directory as infra-dc.yml.
+# Run either this file or infra-dc.yml, not both.
+x-podman:
+  in_pod: false
+
+services:
+  mongodb:
+    image: "${MONGO_IMAGE:-docker.io/library/mongo:8.2}"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MONGO_PORT:-27017}:27017"
+    volumes:
+      - "${MONGO_DATA_DIR:-~/mongodbdata}:/data/db:z"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ping: 1}).ok ? 0 : 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+

@@ -1,0 +1,123 @@
+# Combine with infra-dc.yml. Do not run alongside app-dc.yml.
+x-podman:
+  in_pod: false
+
+x-environment: &environment
+  QUARKUS_HTTP_HOST: 0.0.0.0
+  BLOG_STORE: mongo
+  BLOG_MONGO_URI: mongodb://mongodb:27017
+  BLOG_MONGO_DATABASE: "${BLOG_MONGO_DATABASE:-blog}"
+  BLOG_MONGO_COMMAND_DATABASE: "${BLOG_MONGO_COMMAND_DATABASE:-store}"
+  BLOG_PEKKO_SNAPSHOTS_ENABLED: "${BLOG_PEKKO_SNAPSHOTS_ENABLED:-false}"
+  BLOG_KAFKA_ENABLED: "true"
+  BLOG_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  BLOG_AUTH_SECRET: "${BLOG_AUTH_SECRET:?Set BLOG_AUTH_SECRET in .env (at least 32 characters)}"
+  BLOG_AUTH_DEV_LOGIN: "${BLOG_AUTH_DEV_LOGIN:-true}"
+  BLOG_TITLE: "${BLOG_TITLE:-Rapids Blog}"
+
+x-service: &service
+  restart: unless-stopped
+  stop_grace_period: 20s
+  depends_on:
+    kafka:
+      condition: service_healthy
+    mongodb:
+      condition: service_healthy
+
+services:
+  web:
+    <<: *service
+    image: localhost/blog-quarkus-web:1.0.0-SNAPSHOT
+    build:
+      context: .
+      dockerfile: Containerfile
+      args: {APP_DIR: apps/web}
+    environment:
+      <<: *environment
+      QUARKUS_HTTP_PORT: "8081"
+      BLOG_REGISTRATION_BASE_URL: http://web:8081
+
+  blog-query:
+    <<: *service
+    image: localhost/blog-quarkus-blog-query:1.0.0-SNAPSHOT
+    build:
+      context: .
+      dockerfile: Containerfile
+      args: {APP_DIR: apps/blog-query}
+    environment:
+      <<: *environment
+      QUARKUS_HTTP_PORT: "8082"
+      BLOG_REGISTRATION_BASE_URL: http://blog-query:8082
+
+  discussion-query:
+    <<: *service
+    image: localhost/blog-quarkus-discussion-query:1.0.0-SNAPSHOT
+    build:
+      context: .
+      dockerfile: Containerfile
+      args: {APP_DIR: apps/discussion-query}
+    environment:
+      <<: *environment
+      QUARKUS_HTTP_PORT: "8083"
+      BLOG_REGISTRATION_BASE_URL: http://discussion-query:8083
+
+  monitor:
+    <<: *service
+    image: localhost/blog-quarkus-monitor:1.0.0-SNAPSHOT
+    build:
+      context: .
+      dockerfile: Containerfile
+      args: {APP_DIR: apps/monitor}
+    environment:
+      <<: *environment
+      QUARKUS_HTTP_PORT: "8084"
+      BLOG_REGISTRATION_BASE_URL: http://monitor:8084
+
+  blog-command:
+    <<: *service
+    image: localhost/blog-quarkus-blog-command:1.0.0-SNAPSHOT
+    build:
+      context: .
+      dockerfile: Containerfile
+      args: {APP_DIR: apps/blog-command}
+    environment: *environment
+
+  discussion-command:
+    <<: *service
+    image: localhost/blog-quarkus-discussion-command:1.0.0-SNAPSHOT
+    build:
+      context: .
+      dockerfile: Containerfile
+      args: {APP_DIR: apps/discussion-command}
+    environment: *environment
+
+  blog-query-builder:
+    <<: *service
+    image: localhost/blog-quarkus-blog-query-builder:1.0.0-SNAPSHOT
+    build:
+      context: .
+      dockerfile: Containerfile
+      args: {APP_DIR: apps/blog-query-builder}
+    environment: *environment
+
+  discussion-query-builder:
+    <<: *service
+    image: localhost/blog-quarkus-discussion-query-builder:1.0.0-SNAPSHOT
+    build:
+      context: .
+      dockerfile: Containerfile
+      args: {APP_DIR: apps/discussion-query-builder}
+    environment: *environment
+
+  gateway:
+    image: docker.io/library/haproxy:3.2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT:-8090}:8080"
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro,z
+    depends_on:
+      - web
+      - blog-query
+      - discussion-query
+      - monitor
